@@ -7,6 +7,10 @@
             <span class="font-semibold">Description:</span> {{ $product->description ?? 'N/A' }}
         </p>
 
+        <p class="text-gray-800 mb-4">
+            <span class="font-semibold">Price:</span> {{ $product->price ?? 'N/A' }}
+        </p>
+
         <p class="text-gray-800 mb-6">
             <span class="font-semibold">Size:</span> {{ $product->size ?? 'N/A' }}
         </p>

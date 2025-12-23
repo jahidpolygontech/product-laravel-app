@@ -15,6 +15,7 @@
                         <h2 class="text-xl font-semibold text-gray-800 mb-2">{{ $product->name }}
                         </h2>
                         <p class="text-gray-600 mb-3">{{ $product->description }}</p>
+                        <p class="text-gray-500 font-medium">Price: {{ $product->price }}</p>
                         <p class="text-gray-500 font-medium">Size: {{ $product->size }}</p>
 
                     </div>

@@ -13,6 +13,12 @@
 </div>
 
 <div>
+    <label for="price" class="block text-gray-700 font-medium mb-1">Price</label>
+    <input type="number" name="price" id="price" value="{{old('price',$product->price ?? '')}}"
+           class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+</div>
+
+<div>
     <label for="size" class="block text-gray-700 font-medium mb-1">Size</label>
     <input type="text" name="size" id="size" value="{{old('size',$product->size ?? '')}}"
            class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">

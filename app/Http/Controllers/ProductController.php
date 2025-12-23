@@ -13,9 +13,7 @@ class ProductController extends Controller
      */
     public function index()
     {
-//        $products=Product::all();
-//        dd($products);
-       return view('products.index',['products'=>Product::orderBy('created_at')->paginate(2)]);
+        return view('products.index', ['products' => Product::orderBy('created_at', 'desc')->paginate(5)]);
     }
 
     /**
@@ -34,7 +32,7 @@ class ProductController extends Controller
 
        $product= Product::create($request->validated());
 
-        return redirect()->route('products.show',$product)->with('status','Product Created');
+        return redirect()->route('products.index',$product)->with('status','Product Created');
     }
 
     /**
@@ -60,7 +58,7 @@ class ProductController extends Controller
     public function update(SaveProductRequest $request, Product $product)
     {
      $product->update($request->validated());
-     return redirect()->route('products.show',$product)->with('status','Product Updated');
+     return redirect()->route('products.index',$product)->with('status','Product Updated');
     }
 
     /**

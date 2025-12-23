@@ -24,7 +24,8 @@ class SaveProductRequest extends FormRequest
         return [
             'name'=>'required | max:100',
             'description'=>'nullable | min:3',
-            'size'=>'required |decimal:0,2 | max:100'
+            'size' => 'required|string|max:10',
+            'price'=> 'required |numeric |decimal:0,2 | min:0 | max:100000',
         ];
     }
 }
