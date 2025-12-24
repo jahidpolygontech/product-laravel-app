@@ -9,5 +9,9 @@ class Product extends Model
     protected $table='product';
     protected $fillable=['name','description','size','price'];
 
+    public function carts()
+    {
+        return $this->hasMany(Cart::class);
+    }
 }
 
