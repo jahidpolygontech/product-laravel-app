@@ -21,7 +21,8 @@ class CartController extends Controller
             $total = $cartItems->sum(function ($item) {
                 return $item->price * $item->quantity;
             });
-        } else {
+        }
+        else {
             // For guests, get from session
             $sessionCart = session()->get('cart', []);
             $cartItems = $this->formatSessionCart($sessionCart);
