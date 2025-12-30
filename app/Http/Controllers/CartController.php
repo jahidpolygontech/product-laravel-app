@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Cart;
 use App\Models\Product;
+    use App\Models\Order;
+use App\Models\OrderItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -223,7 +225,31 @@ class CartController extends Controller
                 'phone' => 'required|string',
             ]);
 
-            // Save order to database and clear cart
+            // Get cart items and calculate total
+            $cartItems = $user->carts()->with('product')->get();
+            $totalAmount = $cartItems->sum(function ($item) {
+                return $item->price * $item->quantity;
+            });
+
+            // Create order
+            $order = Order::create([
+                'user_id' => $user->id,
+                'shipping_address' => $validated['shipping_address'],
+                'phone' => $validated['phone'],
+                'total_amount' => $totalAmount,
+            ]);
+
+            // Create order items from cart items
+            foreach ($cartItems as $cartItem) {
+                OrderItem::create([
+                    'order_id' => $order->id,
+                    'product_id' => $cartItem->product_id,
+                    'quantity' => $cartItem->quantity,
+                    'price' => $cartItem->price,
+                ]);
+            }
+
+            // Clear cart
             Cart::where('user_id', $user->id)->delete();
 
             return redirect()->route('checkout.success')->with('status', 'Order placed successfully!');
@@ -235,6 +261,32 @@ class CartController extends Controller
                 'shipping_address' => 'required|string',
                 'phone' => 'required|string',
             ]);
+
+            // Get cart items from session and calculate total
+            $sessionCart = session()->get('cart', []);
+            $cartItems = $this->formatSessionCart($sessionCart);
+            $totalAmount = collect($cartItems)->sum(function ($item) {
+                return $item['price'] * $item['quantity'];
+            });
+
+            // Create order for guest
+            $order = Order::create([
+                'guest_name' => $validated['name'],
+                'guest_email' => $validated['email'],
+                'shipping_address' => $validated['shipping_address'],
+                'phone' => $validated['phone'],
+                'total_amount' => $totalAmount,
+            ]);
+
+            // Create order items from session cart
+            foreach ($cartItems as $cartItem) {
+                OrderItem::create([
+                    'order_id' => $order->id,
+                    'product_id' => $cartItem['id'],
+                    'quantity' => $cartItem['quantity'],
+                    'price' => $cartItem['price'],
+                ]);
+            }
 
             // Clear session cart
             session()->forget('cart');

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\SaveProductRequest;
 use App\Models\Product;
+use App\Models\OrderItem;
 use Illuminate\Http\Request;
 
 class ProductController extends Controller
@@ -13,7 +14,20 @@ class ProductController extends Controller
      */
     public function index()
     {
-        return view('products.index', ['products' => Product::orderBy('created_at', 'desc')->paginate(5)]);
+        // Get top 3 products based on quantity purchased
+        $topProducts = Product::withCount([
+            'orderItems as total_quantity' => function ($query) {
+                $query->select(\DB::raw('COALESCE(SUM(quantity), 0)'));
+            }
+        ])
+        ->orderByDesc('total_quantity')
+        ->limit(3)
+        ->get();
+
+        // Get all products with pagination
+        $products = Product::orderBy('created_at', 'desc')->paginate(5);
+
+        return view('products.index', compact('products', 'topProducts'));
     }
 
     /**
