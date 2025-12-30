@@ -38,7 +38,7 @@ class OrderController extends Controller
 
         $order->load('items.product');
 
-        return view('orders.show', compact('order'));
+
     }
 }
 

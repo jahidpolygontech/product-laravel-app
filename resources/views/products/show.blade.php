@@ -18,7 +18,10 @@
                     <!-- Price -->
                     <div class="mb-6">
                         <p class="text-gray-600 text-sm font-semibold mb-2">PRICE</p>
-                        <p class="text-4xl font-bold text-green-600">${{ number_format($product->price, 2) }}</p>
+                        <p class="text-4xl font-bold text-green-600">
+                            $<span id="displayPrice">{{ number_format($product->price, 2) }}</span>
+                        </p>
+                        <p class="text-sm text-gray-500 mt-2">Base Price: ${{ number_format($product->price, 2) }}</p>
                     </div>
 
                     <!-- Description -->
@@ -114,6 +117,9 @@
     </div>
 
     <script>
+        // Base price of the product
+        const basePrice = {{ $product->price }};
+
         // Initialize quantity from localStorage on page load
         document.addEventListener('DOMContentLoaded', function() {
             const productId = {{ $product->id }};
@@ -122,13 +128,36 @@
             if (savedQuantity) {
                 document.getElementById('quantity').value = parseInt(savedQuantity);
             }
+
+            // Update price on page load
+            updatePrice();
         });
+
+        /**
+         * Calculate price based on quantity
+         * Price increases by 2% per additional quantity
+         */
+        function calculatePrice(quantity) {
+            const priceMultiplier = 1 + ((quantity - 1) * 0.02);
+            const newPrice = basePrice * priceMultiplier;
+            return Math.round(newPrice * 100) / 100; // Round to 2 decimal places
+        }
+
+        /**
+         * Update the displayed price
+         */
+        function updatePrice() {
+            const quantity = parseInt(document.getElementById('quantity').value) || 1;
+            const newPrice = calculatePrice(quantity);
+            document.getElementById('displayPrice').textContent = newPrice.toFixed(2);
+        }
 
         function increaseQuantity() {
             const quantityInput = document.getElementById('quantity');
             const currentValue = parseInt(quantityInput.value) || 1;
             const newValue = currentValue + 1;
             quantityInput.value = newValue;
+            updatePrice();
             saveQuantity();
         }
 
@@ -138,6 +167,7 @@
             if (currentValue > 1) {
                 const newValue = currentValue - 1;
                 quantityInput.value = newValue;
+                updatePrice();
                 saveQuantity();
             }
         }
@@ -148,7 +178,10 @@
             localStorage.setItem(`product_${productId}_quantity`, quantity);
         }
 
-        // Save quantity when user manually types
-        document.getElementById('quantity').addEventListener('change', saveQuantity);
+        // Save quantity and update price when user manually types
+        document.getElementById('quantity').addEventListener('change', function() {
+            updatePrice();
+            saveQuantity();
+        });
     </script>
 </x-layout>

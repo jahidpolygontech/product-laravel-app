@@ -133,7 +133,7 @@ class CartController extends Controller
     }
 
     /**
-     * Update cart item quantity
+     * Update cart item quantity and recalculate price based on quantity
      */
     public function update(Request $request, $cartId = null)
     {
@@ -148,17 +148,46 @@ class CartController extends Controller
             if (!$cart || $cart->user_id !== $user->id) {
                 return redirect()->route('cart.index')->with('status', 'Unauthorized action');
             }
-            $cart->update(['quantity' => $validated['quantity']]);
+
+            // Get the original product price
+            $product = $cart->product;
+            $basePrice = $product->price;
+
+            // Calculate new price based on quantity using tiered pricing
+            $newPrice = $this->calculatePriceByQuantity($basePrice, $validated['quantity']);
+
+            $cart->update([
+                'quantity' => $validated['quantity'],
+                'price' => $newPrice
+            ]);
         } else {
             // For guests, update session
             $sessionCart = session()->get('cart', []);
             if (isset($sessionCart[$cartId])) {
+                $product = Product::find($cartId);
+                $basePrice = $product->price;
+                $newPrice = $this->calculatePriceByQuantity($basePrice, $validated['quantity']);
+
                 $sessionCart[$cartId]['quantity'] = $validated['quantity'];
+                $sessionCart[$cartId]['price'] = $newPrice;
                 session()->put('cart', $sessionCart);
             }
         }
 
         return redirect()->route('cart.index')->with('status', 'Cart updated successfully!');
+    }
+
+    /**
+     * Calculate product price based on quantity
+     * Price increases as quantity increases (or decreases based on your pricing model)
+     * Current formula: price increases by 2% for each unit
+     */
+    private function calculatePriceByQuantity($basePrice, $quantity)
+    {
+        // Tiered pricing: increase price by 2% per additional quantity
+        // This means: qty=1 → basePrice, qty=2 → basePrice*1.02, qty=3 → basePrice*1.04, etc.
+        $priceMultiplier = 1 + (($quantity - 1) * 0.02);
+        return round($basePrice * $priceMultiplier, 2);
     }
 
     /**
