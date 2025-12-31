@@ -2,59 +2,28 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Cart;
+use App\DTOs\CheckoutDTO;
 use App\Models\Product;
-    use App\Models\Order;
-use App\Models\OrderItem;
+use App\Services\CartService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class CartController extends Controller
 {
+    public function __construct(private CartService $cartService) {}
+
+    /**
+     * Display the cart
+     */
     public function index()
     {
         $user = Auth::user();
-        $cartItems = collect();
-        $total = 0;
+        $cartData = $this->cartService->getCart($user);
 
-        if ($user) {
-            // For authenticated users, get from database
-            $cartItems = $user->carts()->with('product')->get();
-            $total = $cartItems->sum(function ($item) {
-                return $item->price * $item->quantity;
-            });
-        }
-        else {
-            // For guests, get from session
-            $sessionCart = session()->get('cart', []);
-            $cartItems = $this->formatSessionCart($sessionCart);
-            $total = collect($cartItems)->sum(function ($item) {
-                return $item['price'] * $item['quantity'];
-            });
-        }
-
-        return view('cart.index', compact('cartItems', 'total'));
-    }
-
-    /**
-     * Format session cart data
-     */
-    private function formatSessionCart($sessionCart)
-    {
-        $formatted = [];
-        foreach ($sessionCart as $productId => $item) {
-            $product = Product::find($productId);
-            if ($product) {
-                $formatted[] = [
-                    'id' => $productId,
-                    'product' => $product,
-                    'quantity' => $item['quantity'],
-                    'price' => $item['price'],
-                    'subtotal' => $item['price'] * $item['quantity'],
-                ];
-            }
-        }
-        return $formatted;
+        return view('cart.index', [
+            'cartItems' => $cartData->items,
+            'total' => $cartData->total,
+        ]);
     }
 
     /**
@@ -66,39 +35,8 @@ class CartController extends Controller
         $quantity = $request->input('quantity', 1);
         $buyNow = $request->input('buy_now', false);
 
-        if ($user) {
-            // For authenticated users, save to database
-            $cartItem = Cart::where('user_id', $user->id)
-                ->where('product_id', $product->id)
-                ->first();
+        $this->cartService->addToCart($product, $quantity, $user);
 
-            if ($cartItem) {
-                $cartItem->increment('quantity', $quantity);
-            } else {
-                Cart::create([
-                    'user_id' => $user->id,
-                    'product_id' => $product->id,
-                    'quantity' => $quantity,
-                    'price' => $product->price,
-                ]);
-            }
-        } else {
-            // For guests, save to session
-            $cart = session()->get('cart', []);
-
-            if (isset($cart[$product->id])) {
-                $cart[$product->id]['quantity'] += $quantity;
-            } else {
-                $cart[$product->id] = [
-                    'quantity' => $quantity,
-                    'price' => $product->price,
-                ];
-            }
-
-            session()->put('cart', $cart);
-        }
-
-        // If Buy Now button was clicked, redirect to cart
         if ($buyNow) {
             return redirect()->route('cart.index')->with('status', 'Product added to cart! Proceed to checkout.');
         }
@@ -113,27 +51,18 @@ class CartController extends Controller
     {
         $user = Auth::user();
 
-        if ($user) {
-            // For authenticated users
-            $cart = Cart::find($cartId);
-            if (!$cart || $cart->user_id !== $user->id) {
-                return redirect()->route('cart.index')->with('status', 'Unauthorized action');
-            }
-            $cart->delete();
-        } else {
-            // For guests, remove from session
-            $cart = session()->get('cart', []);
-            if (isset($cart[$cartId])) {
-                unset($cart[$cartId]);
-                session()->put('cart', $cart);
-            }
+        try {
+            $this->cartService->removeFromCart($cartId, $user);
+        }
+        catch (\Exception $e) {
+            return redirect()->route('cart.index')->with('status', 'Unauthorized action');
         }
 
         return redirect()->route('cart.index')->with('status', 'Item removed from cart');
     }
 
     /**
-     * Update cart item quantity and recalculate price based on quantity
+     * Update cart item quantity
      */
     public function update(Request $request, $cartId = null)
     {
@@ -142,52 +71,14 @@ class CartController extends Controller
             'quantity' => 'required|integer|min:1',
         ]);
 
-        if ($user) {
-            // For authenticated users
-            $cart = Cart::find($cartId);
-            if (!$cart || $cart->user_id !== $user->id) {
-                return redirect()->route('cart.index')->with('status', 'Unauthorized action');
-            }
-
-            // Get the original product price
-            $product = $cart->product;
-            $basePrice = $product->price;
-
-            // Calculate new price based on quantity using tiered pricing
-            $newPrice = $this->calculatePriceByQuantity($basePrice, $validated['quantity']);
-
-            $cart->update([
-                'quantity' => $validated['quantity'],
-                'price' => $newPrice
-            ]);
-        } else {
-            // For guests, update session
-            $sessionCart = session()->get('cart', []);
-            if (isset($sessionCart[$cartId])) {
-                $product = Product::find($cartId);
-                $basePrice = $product->price;
-                $newPrice = $this->calculatePriceByQuantity($basePrice, $validated['quantity']);
-
-                $sessionCart[$cartId]['quantity'] = $validated['quantity'];
-                $sessionCart[$cartId]['price'] = $newPrice;
-                session()->put('cart', $sessionCart);
-            }
+        try {
+            $this->cartService->updateCartItem($validated['quantity'], $cartId, $user);
+        }
+        catch (\Exception $e) {
+            return redirect()->route('cart.index')->with('status', 'Unauthorized action');
         }
 
         return redirect()->route('cart.index')->with('status', 'Cart updated successfully!');
-    }
-
-    /**
-     * Calculate product price based on quantity
-     * Price increases as quantity increases (or decreases based on your pricing model)
-     * Current formula: price increases by 2% for each unit
-     */
-    private function calculatePriceByQuantity($basePrice, $quantity)
-    {
-        // Tiered pricing: increase price by 2% per additional quantity
-        // This means: qty=1 → basePrice, qty=2 → basePrice*1.02, qty=3 → basePrice*1.04, etc.
-        $priceMultiplier = 1 + (($quantity - 1) * 0.02);
-        return round($basePrice * $priceMultiplier, 2);
     }
 
     /**
@@ -196,12 +87,7 @@ class CartController extends Controller
     public function clear()
     {
         $user = Auth::user();
-
-        if ($user) {
-            Cart::where('user_id', $user->id)->delete();
-        } else {
-            session()->forget('cart');
-        }
+        $this->cartService->clearCart($user);
 
         return redirect()->route('cart.index')->with('status', 'Cart cleared successfully!');
     }
@@ -212,115 +98,47 @@ class CartController extends Controller
     public function checkout()
     {
         $user = Auth::user();
-        $cartItems = collect();
-        $total = 0;
+        $cartData = $this->cartService->getCart($user);
 
-        if ($user) {
-            // For authenticated users, get from database
-            $cartItems = $user->carts()->with('product')->get();
-            $total = $cartItems->sum(function ($item) {
-                return $item->price * $item->quantity;
-            });
-        } else {
-            // For guests, get from session
-            $sessionCart = session()->get('cart', []);
-            if (empty($sessionCart)) {
-                return redirect()->route('cart.index')->with('status', 'Your cart is empty');
-            }
-            $cartItems = $this->formatSessionCart($sessionCart);
-            $total = collect($cartItems)->sum(function ($item) {
-                return $item['price'] * $item['quantity'];
-            });
-        }
-
-        if (empty($cartItems) || (is_countable($cartItems) && count($cartItems) == 0)) {
+        if ($cartData->isEmpty()) {
             return redirect()->route('cart.index')->with('status', 'Your cart is empty');
         }
 
-        return view('checkout', compact('cartItems', 'total', 'user'));
+        return view('checkout', [
+            'cartItems' => $cartData->items,
+            'total' => $cartData->total,
+            'user' => $user,
+        ]);
     }
 
     /**
-     * Process checkout
+     * Process checkout and create order
      */
     public function processCheckout(Request $request)
     {
         $user = Auth::user();
 
         if ($user) {
-            // For authenticated users
             $validated = $request->validate([
                 'shipping_address' => 'required|string',
                 'phone' => 'required|string',
             ]);
-
-            // Get cart items and calculate total
-            $cartItems = $user->carts()->with('product')->get();
-            $totalAmount = $cartItems->sum(function ($item) {
-                return $item->price * $item->quantity;
-            });
-
-            // Create order
-            $order = Order::create([
-                'user_id' => $user->id,
-                'shipping_address' => $validated['shipping_address'],
-                'phone' => $validated['phone'],
-                'total_amount' => $totalAmount,
-            ]);
-
-            // Create order items from cart items
-            foreach ($cartItems as $cartItem) {
-                OrderItem::create([
-                    'order_id' => $order->id,
-                    'product_id' => $cartItem->product_id,
-                    'quantity' => $cartItem->quantity,
-                    'price' => $cartItem->price,
-                ]);
-            }
-
-            // Clear cart
-            Cart::where('user_id', $user->id)->delete();
-
-            return redirect()->route('checkout.success')->with('status', 'Order placed successfully!');
+            $checkout = CheckoutDTO::fromArray($validated);
         } else {
-            // For guests
             $validated = $request->validate([
                 'name' => 'required|string',
                 'email' => 'required|email',
                 'shipping_address' => 'required|string',
                 'phone' => 'required|string',
             ]);
+            $checkout = CheckoutDTO::fromArray($validated);
+        }
 
-            // Get cart items from session and calculate total
-            $sessionCart = session()->get('cart', []);
-            $cartItems = $this->formatSessionCart($sessionCart);
-            $totalAmount = collect($cartItems)->sum(function ($item) {
-                return $item['price'] * $item['quantity'];
-            });
-
-            // Create order for guest
-            $order = Order::create([
-                'guest_name' => $validated['name'],
-                'guest_email' => $validated['email'],
-                'shipping_address' => $validated['shipping_address'],
-                'phone' => $validated['phone'],
-                'total_amount' => $totalAmount,
-            ]);
-
-            // Create order items from session cart
-            foreach ($cartItems as $cartItem) {
-                OrderItem::create([
-                    'order_id' => $order->id,
-                    'product_id' => $cartItem['id'],
-                    'quantity' => $cartItem['quantity'],
-                    'price' => $cartItem['price'],
-                ]);
-            }
-
-            // Clear session cart
-            session()->forget('cart');
-
+        try {
+            $order = $this->cartService->processCheckout($checkout, $user);
             return redirect()->route('checkout.success')->with('status', 'Order placed successfully!');
+        } catch (\Exception $e) {
+            return redirect()->route('cart.index')->with('status', 'Error processing checkout: ' . $e->getMessage());
         }
     }
 }

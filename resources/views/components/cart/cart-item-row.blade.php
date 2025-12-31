@@ -2,21 +2,21 @@
 
     {{-- Product --}}
     <td class="px-6 py-4">
-        <a href="{{ route('products.show', $item['product']->id) }}"
+        <a href="{{ route('products.show', $item->product->id) }}"
            class="text-blue-600 hover:underline font-medium">
-            {{ $item['product']->name }}
+            {{ $item->product_name }}
         </a>
     </td>
 
     {{-- Price --}}
     <td class="px-6 py-4 text-gray-800">
-        ${{ number_format($item['price'], 2) }}
+        ${{ number_format($item->price, 2) }}
     </td>
 
     {{-- Quantity --}}
     <td class="px-6 py-4">
         <form method="POST"
-              action="{{ route('cart.update', $item['id']) }}"
+              action="{{ route('cart.update', $item->id) }}"
               class="flex items-center gap-2">
             @csrf
             @method('PATCH')
@@ -29,7 +29,7 @@
                 </button>
                 <input type="number"
                        name="quantity"
-                       value="{{ $item['quantity'] }}"
+                       value="{{ $item->quantity }}"
                        min="1"
                        class="w-12 py-1 border-0 text-center font-semibold focus:outline-none"
                        required>
@@ -49,13 +49,13 @@
 
     {{-- Subtotal --}}
     <td class="px-6 py-4 text-gray-800">
-        ${{ number_format($item['subtotal'], 2) }}
+        ${{ number_format($item->subtotal, 2) }}
     </td>
 
     {{-- Remove --}}
     <td class="px-6 py-4">
         <form method="POST"
-              action="{{ route('cart.remove', $item['id']) }}"
+              action="{{ route('cart.remove', $item->id) }}"
               onsubmit="return confirm('Are you sure?');">
             @csrf
             @method('DELETE')

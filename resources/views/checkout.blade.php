@@ -99,11 +99,11 @@
                     @foreach($cartItems as $item)
                         <div class="border-b pb-4">
                             <div class="flex justify-between text-gray-700 mb-2">
-                                <span class="font-semibold">{{ $item->product->name ?? $item['product']->name }}</span>
-                                <span>${{ number_format($item->price ?? $item['price'], 2) }}</span>
+                                <span class="font-semibold">{{ $item->product_name }}</span>
+                                <span>${{ number_format($item->price, 2) }}</span>
                             </div>
                             <div class="text-sm text-gray-600">
-                                Qty: {{ $item->quantity ?? $item['quantity'] }}
+                                Qty: {{ $item->quantity }}
                             </div>
                         </div>
                     @endforeach

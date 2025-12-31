@@ -6,10 +6,12 @@ use Closure;
 use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
 
+use Illuminate\Support\Collection;
+
 class CartItemsTable extends Component
 {
     public function __construct(
-        public array $cartItems
+        public Collection $cartItems
     ) {}
 
     public function render(): View|Closure|string
@@ -17,4 +19,5 @@ class CartItemsTable extends Component
         return view('components.cart.cart-items-table');
     }
 }
+
 
