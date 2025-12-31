@@ -5,30 +5,30 @@ namespace App\DTOs;
 class CheckoutDTO
 {
     public function __construct(
-        public string $shipping_address,
-        public string $phone,
-        public ?string $name = null,
-        public ?string $email = null,
+        public readonly ?string $name,
+        public readonly ?string $email,
+        public readonly string $shipping_address,
+        public readonly string $phone,
     ) {}
 
-    public static function fromArray(array $data): self
+    /**
+     * Create DTO from validated request data
+     */
+    public static function fromRequest(array $data): self
     {
         return new self(
-            shipping_address: $data['shipping_address'],
-            phone: $data['phone'],
             name: $data['name'] ?? null,
             email: $data['email'] ?? null,
+            shipping_address: $data['shipping_address'],
+            phone: $data['phone'],
         );
     }
 
-    public function toArray(): array
+    /**
+     * Optional: Create DTO from array (generic)
+     */
+    public static function fromArray(array $data): self
     {
-        return [
-            'shipping_address' => $this->shipping_address,
-            'phone' => $this->phone,
-            'name' => $this->name,
-            'email' => $this->email,
-        ];
+        return self::fromRequest($data);
     }
 }
-

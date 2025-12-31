@@ -1,84 +1,78 @@
 <?php
-
 namespace App\Http\Controllers;
 
 use App\DTOs\CheckoutDTO;
+use App\Http\Requests\AddToCartRequest;
+use App\Http\Requests\CheckoutRequest;
+use App\Http\Requests\UpdateCartRequest;
 use App\Models\Product;
 use App\Services\CartService;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class CartController extends Controller
 {
-    public function __construct(private CartService $cartService) {}
+    public function __construct(
+        private readonly CartService $cartService
+    ) {}
 
     /**
-     * Display the cart
+     * Display cart
      */
     public function index()
     {
-        $user = Auth::user();
-        $cartData = $this->cartService->getCart($user);
+        $cart = $this->cartService->getCart(Auth::user());
 
         return view('cart.index', [
-            'cartItems' => $cartData->items,
-            'total' => $cartData->total,
+            'cartItems' => $cart->items,
+            'total'     => $cart->total,
         ]);
     }
 
     /**
      * Add product to cart
      */
-    public function add(Request $request, Product $product)
+    public function add(AddToCartRequest $request, Product $product)
     {
-        $user = Auth::user();
-        $quantity = $request->input('quantity', 1);
-        $buyNow = $request->input('buy_now', false);
+        $this->cartService->addToCart(
+            product: $product,
+            quantity: $request->input('quantity', 1),
+            user: Auth::user()
+        );
 
-        $this->cartService->addToCart($product, $quantity, $user);
-
-        if ($buyNow) {
-            return redirect()->route('cart.index')->with('status', 'Product added to cart! Proceed to checkout.');
-        }
-
-        return redirect()->back()->with('status', 'Product added to cart successfully!');
+        return redirect()
+            ->route('cart.index')
+            ->with('status', 'Product added to cart successfully!');
     }
 
     /**
      * Remove item from cart
      */
-    public function remove(Request $request, $cartId = null)
+    public function remove(int $cartId)
     {
-        $user = Auth::user();
+        $this->cartService->removeFromCart(
+            cartId: $cartId,
+            user: Auth::user()
+        );
 
-        try {
-            $this->cartService->removeFromCart($cartId, $user);
-        }
-        catch (\Exception $e) {
-            return redirect()->route('cart.index')->with('status', 'Unauthorized action');
-        }
-
-        return redirect()->route('cart.index')->with('status', 'Item removed from cart');
+        return redirect()
+            ->route('cart.index')
+            ->with('status', 'Item removed from cart');
     }
 
     /**
      * Update cart item quantity
      */
-    public function update(Request $request, $cartId = null)
+    public function update(UpdateCartRequest $request, int $cartId)
     {
-        $user = Auth::user();
-        $validated = $request->validate([
-            'quantity' => 'required|integer|min:1',
-        ]);
+        $this->cartService->updateCartItem(
+            quantity: $request->quantity,
+            cartId: $cartId,
+            user: Auth::user()
+        );
 
-        try {
-            $this->cartService->updateCartItem($validated['quantity'], $cartId, $user);
-        }
-        catch (\Exception $e) {
-            return redirect()->route('cart.index')->with('status', 'Unauthorized action');
-        }
-
-        return redirect()->route('cart.index')->with('status', 'Cart updated successfully!');
+        return redirect()
+            ->route('cart.index')
+            ->with('status', 'Cart updated successfully!');
     }
 
     /**
@@ -86,10 +80,11 @@ class CartController extends Controller
      */
     public function clear()
     {
-        $user = Auth::user();
-        $this->cartService->clearCart($user);
+        $this->cartService->clearCart(Auth::user());
 
-        return redirect()->route('cart.index')->with('status', 'Cart cleared successfully!');
+        return redirect()
+            ->route('cart.index')
+            ->with('status', 'Cart cleared successfully!');
     }
 
     /**
@@ -97,48 +92,31 @@ class CartController extends Controller
      */
     public function checkout()
     {
-        $user = Auth::user();
-        $cartData = $this->cartService->getCart($user);
-
-        if ($cartData->isEmpty()) {
-            return redirect()->route('cart.index')->with('status', 'Your cart is empty');
-        }
+        $cart = $this->cartService->getCart(Auth::user());
 
         return view('checkout', [
-            'cartItems' => $cartData->items,
-            'total' => $cartData->total,
-            'user' => $user,
+            'cartItems' => $cart->items,
+            'total'     => $cart->total,
+            'user'      => Auth::user(),
         ]);
     }
 
     /**
-     * Process checkout and create order
+     * Process checkout
      */
-    public function processCheckout(Request $request)
+    public function processCheckout(CheckoutRequest $request)
     {
-        $user = Auth::user();
+        $checkoutDTO = CheckoutDTO::fromRequest(
+            $request->validated()
+        );
 
-        if ($user) {
-            $validated = $request->validate([
-                'shipping_address' => 'required|string',
-                'phone' => 'required|string',
-            ]);
-            $checkout = CheckoutDTO::fromArray($validated);
-        } else {
-            $validated = $request->validate([
-                'name' => 'required|string',
-                'email' => 'required|email',
-                'shipping_address' => 'required|string',
-                'phone' => 'required|string',
-            ]);
-            $checkout = CheckoutDTO::fromArray($validated);
-        }
+        $this->cartService->processCheckout(
+            checkout: $checkoutDTO,
+            user: Auth::user()
+        );
 
-        try {
-            $order = $this->cartService->processCheckout($checkout, $user);
-            return redirect()->route('checkout.success')->with('status', 'Order placed successfully!');
-        } catch (\Exception $e) {
-            return redirect()->route('cart.index')->with('status', 'Error processing checkout: ' . $e->getMessage());
-        }
+        return redirect()
+            ->route('checkout.success')
+            ->with('status', 'Order placed successfully!');
     }
 }
